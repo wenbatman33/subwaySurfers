@@ -12,11 +12,11 @@ const lighten = (c, t = 0.35) => col(c).lerp(col('#ffffff'), t);
 
 // ───────── 材質 ─────────
 const MAT = {
-  skin: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.52, sheen: 0.6, sheenRoughness: 0.45, sheenColor: col('#ffb89c') }),
-  cloth: (c, sheen = 1) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.86, sheen, sheenRoughness: 0.55, sheenColor: lighten(c, 0.45) }),
-  plastic: (c, r = 0.35) => new THREE.MeshPhysicalMaterial({ color: c, roughness: r, clearcoat: 0.35, clearcoatRoughness: 0.3 }),
+  skin: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.62, sheen: 0.25, sheenRoughness: 0.6, sheenColor: col('#ffb89c') }),
+  cloth: (c, sheen = 1) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.9, sheen: sheen * 0.45, sheenRoughness: 0.7, sheenColor: lighten(c, 0.3) }),
+  plastic: (c, r = 0.35) => new THREE.MeshPhysicalMaterial({ color: c, roughness: Math.max(r, 0.45), clearcoat: 0.1, clearcoatRoughness: 0.5 }),
   rubber: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.7 }),
-  hair: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.72, sheen: 0.5, sheenRoughness: 0.35, sheenColor: lighten(c, 0.3) }),
+  hair: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.8, sheen: 0.25, sheenRoughness: 0.35, sheenColor: lighten(c, 0.3) }),
   glossy: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05 }),
   basic: (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o }),
 };
@@ -460,7 +460,7 @@ export function makeHoverboard() {
 // 噴射背包
 export function makeJetpack() {
   const g = new THREE.Group();
-  const metal = new THREE.MeshPhysicalMaterial({ color: '#d9dde2', metalness: 0.85, roughness: 0.25, clearcoat: 0.5 });
+  const metal = new THREE.MeshPhysicalMaterial({ color: '#c9cdd2', metalness: 0.35, roughness: 0.45 });
   const red = MAT.plastic('#e8322b');
   for (const x of [-0.15, 0.15]) {
     part(new THREE.CapsuleGeometry(0.12, 0.36, 6, 16), metal, g, x, 0, 0);

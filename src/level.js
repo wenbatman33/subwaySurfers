@@ -27,7 +27,7 @@ export class Level {
     // 金幣：InstancedMesh（全部同步旋轉）
     const coinGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.1, 28);
     coinGeo.rotateX(Math.PI / 2);
-    const coinMat = new THREE.MeshStandardMaterial({ color: '#ffc629', metalness: 1, roughness: 0.22, emissive: '#ff9d00', emissiveIntensity: 0.55 });
+    const coinMat = new THREE.MeshStandardMaterial({ color: '#ffc629', metalness: 0.6, roughness: 0.35, emissive: '#ff9d00', emissiveIntensity: 0.45 });
     this.coinMesh = new THREE.InstancedMesh(coinGeo, coinMat, MAX_COINS);
     this.coinMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.coinMesh.frustumCulled = false;

@@ -26,13 +26,13 @@ export class Props {
   _trains() {
     const body = new RoundedBoxGeometry(TRAIN_W, 3.0, CAR_LEN, 3, 0.3);
     this.carBody = body;
-    const roof = std({ color: '#9aa3ad', metalness: 0.7, roughness: 0.35 });
-    const under = std({ color: '#22252a', metalness: 0.5, roughness: 0.6 });
+    const roof = std({ color: '#9aa3ad', metalness: 0.2, roughness: 0.6 });
+    const under = std({ color: '#22252a', metalness: 0.2, roughness: 0.75 });
     // 每種塗裝：側面有/無塗鴉 + 車頭
     this.liveries = LIVERIES.map((liv) => {
       const front = trainFrontTextures(liv);
-      const frontMat = std({ map: front.map, emissiveMap: front.emissiveMap, emissive: '#ffffff', emissiveIntensity: 2.2, metalness: 0.3, roughness: 0.4 });
-      const sides = [false, true].map((gf) => std({ map: trainSideTexture(liv, gf), metalness: 0.35, roughness: 0.4 }));
+      const frontMat = std({ map: front.map, emissiveMap: front.emissiveMap, emissive: '#ffffff', emissiveIntensity: 2.2, metalness: 0.1, roughness: 0.55 });
+      const sides = [false, true].map((gf) => std({ map: trainSideTexture(liv, gf), metalness: 0.1, roughness: 0.6 }));
       return sides.map((sideMat) => [sideMat, sideMat, roof, under, frontMat, frontMat]);
     });
     // 底盤 + 車輪 + 車頂冷氣
@@ -58,7 +58,7 @@ export class Props {
       acParts.push(g);
     }
     this.acGeo = mergeGeometries(acParts);
-    this.acMat = std({ color: '#c4cad1', metalness: 0.5, roughness: 0.4 });
+    this.acMat = std({ color: '#c4cad1', metalness: 0.15, roughness: 0.6 });
     this.bellowGeo = new THREE.BoxGeometry(1.8, 2.6, CAR_GAP + 0.4);
     // 移動列車頭燈光錐（加法混合，製造強烈光暈）
     this.beamMat = new THREE.MeshBasicMaterial({ color: '#fff3b0', transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
@@ -120,11 +120,11 @@ export class Props {
     this.rampGeo = geo;
     const side = std({ map: stripeTexture('#ffd000', '#1b1b1b', 6), roughness: 0.6 });
     side.map.repeat.set(0.4, 1.4);
-    const top = std({ map: plateTexture(), metalness: 0.7, roughness: 0.35 });
+    const top = std({ map: plateTexture(), metalness: 0.25, roughness: 0.6 });
     this.rampMats = [side, top];
     // 支撐腳
     this.rampLegGeo = new THREE.BoxGeometry(0.25, 1, 0.25);
-    this.rampLegMat = std({ color: '#3a3f45', metalness: 0.6 });
+    this.rampLegMat = std({ color: '#3a3f45', metalness: 0.2 });
   }
 
   // 斜坡：origin 在坡底（面向玩家）
@@ -140,7 +140,7 @@ export class Props {
   _barriers() {
     // 低欄（需跳躍）
     const redWhite = std({ map: stripeTexture('#ffffff', '#e8322b', 6), roughness: 0.5 });
-    const post = std({ color: '#d9dde2', metalness: 0.6, roughness: 0.35 });
+    const post = std({ color: '#d9dde2', metalness: 0.2, roughness: 0.55 });
     const lamp = new THREE.MeshStandardMaterial({ color: '#ffae00', emissive: '#ff9000', emissiveIntensity: 5 });
     const hurdle = new THREE.Group();
     const board = new THREE.Mesh(new RoundedBoxGeometry(2.3, 0.55, 0.18, 2, 0.06), redWhite);

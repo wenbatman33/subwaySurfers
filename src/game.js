@@ -4,7 +4,6 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { TUNING, VISUAL, SKY, LAYOUT_PC, LAYOUT_MOBILE, IS_MOBILE } from './config.js';
 import { World } from './world.js';
@@ -105,8 +104,8 @@ export class Game {
     s.add(this.camera);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    s.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    s.environmentIntensity = 0.55;
+    s.environment = pmrem.fromScene(this._naturalEnvScene(), 0.04).texture;
+    s.environmentIntensity = 0.35;
 
     this.hemi = new THREE.HemisphereLight('#d4ebff', '#6d5a48', VISUAL.hemiIntensity);
     s.add(this.hemi);
@@ -168,6 +167,24 @@ export class Game {
       this.clouds.add(sp);
     }
     s.add(this.clouds);
+  }
+
+  // 自然光環境貼圖：天空藍 → 地平線 → 地面（無攝影棚白燈箱，避免濕亮反光）
+  _naturalEnvScene() {
+    const es = new THREE.Scene();
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: `varying vec3 vP;
+        void main(){
+          float h = vP.y;
+          vec3 sky = mix(vec3(0.62, 0.72, 0.82), vec3(0.32, 0.48, 0.72), smoothstep(0.0, 0.8, h));
+          vec3 ground = mix(vec3(0.42, 0.39, 0.35), vec3(0.28, 0.26, 0.24), smoothstep(0.0, -0.6, h));
+          gl_FragColor = vec4(h > 0.0 ? sky : ground, 1.0);
+        }`,
+    });
+    es.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), mat));
+    return es;
   }
 
   _initCharacters() {
@@ -325,6 +342,8 @@ export class Game {
     this.scene.fog.near = VISUAL.fogNear * (1 - E.rain * 0.6) * (1 + alt * 0.8);
     this.scene.fog.far = VISUAL.fogFar * (1 - E.rain * 0.45 - E.snow * 0.12) * (1 + alt * 0.5);
     this.world.setNight(night);
+    // 環境反射隨日光強弱：夜晚 / 雨天更低
+    this.scene.environmentIntensity = 0.35 * (1 - night * 0.7) * (1 - E.rain * 0.3);
     // 雲朵隨時段變暗
     const cb = 1 - k.night * 0.75 - E.rain * 0.35;
     for (const c of this.clouds.children) c.material.color.setRGB(cb, cb, cb * 1.04 + k.night * 0.05);
@@ -492,10 +511,20 @@ export class Game {
     }
   }
 
+  // 腳下表面的上升速率（斜坡上 > 0）
+  _riseRate(speed) {
+    const R = this.run;
+    const a = this.level.surfaceAt(R.x, R.d);
+    const b = this.level.surfaceAt(R.x, R.d + 0.4);
+    return Math.max(0, ((b - a) / 0.4) * speed);
+  }
+
   _jump() {
     const R = this.run;
     const sup = R.pu.sneakers > 0;
-    R.vy = sup ? TUNING.superJumpVelocity : TUNING.jumpVelocity;
+    // 在斜坡上起跳：疊加坡面上升速度（否則高速時坡面會追上角色而撞坡）
+    const rise = R.grounded ? this._riseRate(R.speed) : 0;
+    R.vy = (sup ? TUNING.superJumpVelocity : TUNING.jumpVelocity) + rise;
     R.grounded = false;
     R.coyote = 0;
     R.roll = 0;
@@ -636,8 +665,12 @@ export class Game {
         const g = TUNING.gravity * (R.vy < 0 ? 1.15 : 1);
         R.vy -= g * h;
         R.y += R.vy * h;
-        if (R.vy <= 0 && R.y <= surf && R.y >= surf - 1.1) this._land(surf);
-        else if (R.y < 0) this._land(0);
+        if (R.y <= surf && R.y >= surf - 1.1) {
+          // 被上升中的坡面追上：下落或上升慢於坡面 → 落地；否則托到坡面上繼續上升
+          const rise = this._riseRate(speed);
+          if (R.vy <= rise) this._land(surf);
+          else R.y = surf;
+        } else if (R.y < 0) this._land(0);
       }
     }
     this._collide();

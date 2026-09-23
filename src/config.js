@@ -43,7 +43,7 @@ export const VISUAL = {
   exposure: 1,
   bloomStrength: 1,
   bloomRadius: 0.45,
-  bloomThreshold: 0.85,
+  bloomThreshold: 0.95,
   sunIntensity: 1,
   hemiIntensity: 1,
   fogNear: 70,
