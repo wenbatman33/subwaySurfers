@@ -360,6 +360,36 @@ export class AudioEngine {
     this._kick(t + 0.6, this.sfxGain);
   }
 
+  // 打雷
+  thunder() {
+    if (!this.ok) return;
+    const t = this.t + 0.15 + Math.random() * 0.4;
+    this._noise(t, 2.8, 0.9, this.sfxGain, { type: 'lowpass', freq: 900, freqEnd: 60, q: 0.5, a: 0.02 });
+    this._noise(t, 3.2, 0.6, this.reverbSend, { type: 'lowpass', freq: 400, freqEnd: 40, q: 0.3, a: 0.2 });
+    this._osc('sine', 55, t, 1.6, 0.5, this.sfxGain, { freqEnd: 30 });
+  }
+
+  // 雨聲（持續，音量 0~1）
+  rain(amount) {
+    if (!this.ctx) return;
+    if (!this.rainNode) {
+      const ctx = this.ctx;
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuf;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 2400;
+      f.Q.value = 0.4;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f).connect(g).connect(this.sfxGain);
+      src.start();
+      this.rainNode = { src, g };
+    }
+    this.rainNode.g.gain.setTargetAtTime(this.enabled ? amount * 0.28 : 0, this.ctx.currentTime, 0.3);
+  }
+
   // 噴射背包持續噴火聲
   jetpackOn(on) {
     if (!this.ctx) return;

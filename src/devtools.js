@@ -1,5 +1,6 @@
 import GUI from 'lil-gui';
-import { TUNING, VISUAL, LAYOUT_PC, LAYOUT_MOBILE, saveOverrides, clearOverrides, exportAll } from './config.js';
+import { TUNING, VISUAL, SKY, LAYOUT_PC, LAYOUT_MOBILE, saveOverrides, clearOverrides, exportAll } from './config.js';
+import { THEMES, THEME_NAMES } from './world.js';
 
 // DEV 開發者微調工具：` 或 F2 或右下角 ⚙ 開啟
 // - 即時調整相機、HUD、遊戲手感、視覺
@@ -98,23 +99,77 @@ export class DevTools {
     for (const [k, a, b, n] of T) ft.add(TUNING, k, a, b).name(n).onChange(ch).listen();
     ft.close();
 
+    // 場景 / 日夜 / 天氣 / 彎道
+    const fw = gui.addFolder('🌍 場景 · 日夜 · 天氣 · 彎道');
+    const envCtl = {
+      theme: g.world.forceTheme == null ? -1 : g.world.forceTheme,
+      lockTime: g.env.todLock != null,
+      tod: g.env.todLock ?? g.env.tod,
+      weather: g.env.weatherLock ?? 'auto',
+      autoCurve: !g.curve.lock,
+    };
+    const themeOpts = { '自動輪替': -1 };
+    THEMES.forEach((t, i) => { themeOpts[THEME_NAMES[t]] = i; });
+    fw.add(envCtl, 'theme', themeOpts).name('場景').onChange((v) => g.world.setForceTheme(v < 0 ? null : v, g.run.d));
+    fw.add(envCtl, 'lockTime').name('鎖定時間').onChange((v) => { g.env.todLock = v ? envCtl.tod : null; });
+    fw.add(envCtl, 'tod', 0, 1, 0.005).name('時間（0白天→0.5夜）').onChange((v) => { envCtl.lockTime = true; g.env.todLock = v; fw.controllersRecursive().forEach((c) => c.updateDisplay()); });
+    fw.add(envCtl, 'weather', { 自動: 'auto', 晴天: 'clear', 下雨: 'rain', 下雪: 'snow' }).name('天氣').onChange((v) => { g.env.weatherLock = v === 'auto' ? null : v; });
+    fw.add(envCtl, 'autoCurve').name('自動彎道').onChange((v) => { g.curve.lock = !v; });
+    const cv = {
+      left: () => { g.curve.lock = true; g.curve.tx = -TUNING.curveMax; g.curve.ty = 0; },
+      right: () => { g.curve.lock = true; g.curve.tx = TUNING.curveMax; g.curve.ty = 0; },
+      up: () => { g.curve.lock = true; g.curve.tx = 0; g.curve.ty = TUNING.hillMax; },
+      down: () => { g.curve.lock = true; g.curve.tx = 0; g.curve.ty = -TUNING.hillMax; },
+      straight: () => { g.curve.lock = true; g.curve.tx = 0; g.curve.ty = 0; },
+    };
+    fw.add(cv, 'left').name('↰ 左彎');
+    fw.add(cv, 'right').name('↱ 右彎');
+    fw.add(cv, 'up').name('⤴ 上坡');
+    fw.add(cv, 'down').name('⤵ 下坡');
+    fw.add(cv, 'straight').name('↑ 直線');
+    fw.add(TUNING, 'curveMax', 0, 0.004, 0.0001).name('彎道強度').onChange(ch);
+    fw.add(TUNING, 'hillMax', 0, 0.002, 0.00005).name('起伏強度').onChange(ch);
+    fw.add(TUNING, 'baseHill', -0.001, 0.001, 0.00005).name('基本下彎').onChange(ch);
+    fw.add(TUNING, 'curveInterval', 1, 20, 0.5).name('換彎秒數').onChange(ch);
+    fw.add(TUNING, 'dayLength', 20, 600, 5).name('日夜循環秒數').onChange(ch);
+    fw.add(TUNING, 'rainChance', 0, 1, 0.05).name('下雨機率').onChange(ch);
+    fw.close();
+
     // 視覺
-    const fv = gui.addFolder('視覺 Visual');
-    fv.add(VISUAL, 'exposure', 0.3, 2.5, 0.01).name('曝光').onChange(ch);
-    fv.add(VISUAL, 'bloomStrength', 0, 3, 0.01).name('Bloom 強度').onChange(ch);
+    const fv = gui.addFolder('視覺 Visual（全域倍率）');
+    fv.add(VISUAL, 'exposure', 0.3, 2.5, 0.01).name('曝光倍率').onChange(ch);
+    fv.add(VISUAL, 'bloomStrength', 0, 3, 0.01).name('Bloom 倍率').onChange(ch);
     fv.add(VISUAL, 'bloomRadius', 0, 1.5, 0.01).name('Bloom 半徑').onChange(ch);
     fv.add(VISUAL, 'bloomThreshold', 0, 1.5, 0.01).name('Bloom 門檻').onChange(ch);
-    fv.add(VISUAL, 'sunIntensity', 0, 8, 0.05).name('太陽光').onChange(ch);
-    fv.add(VISUAL, 'hemiIntensity', 0, 4, 0.05).name('環境光').onChange(ch);
+    fv.add(VISUAL, 'sunIntensity', 0, 3, 0.05).name('太陽光倍率').onChange(ch);
+    fv.add(VISUAL, 'hemiIntensity', 0, 3, 0.05).name('環境光倍率').onChange(ch);
     fv.add(VISUAL, 'fogNear', 0, 300, 1).name('霧 起點').onChange(ch);
     fv.add(VISUAL, 'fogFar', 50, 600, 1).name('霧 終點').onChange(ch);
-    fv.addColor(VISUAL, 'fogColor').name('霧色').onChange(ch);
-    fv.addColor(VISUAL, 'skyTop').name('天空上').onChange(ch);
-    fv.addColor(VISUAL, 'skyBottom').name('天空下').onChange(ch);
     fv.add(VISUAL, 'vignette', 0, 1.5, 0.01).name('暗角').onChange(ch);
     fv.add(VISUAL, 'saturation', 0, 2, 0.01).name('飽和度').onChange(ch);
     fv.add(VISUAL, 'shake', 0, 3, 0.05).name('震動強度').onChange(ch);
     fv.close();
+
+    // 各時段天空色
+    const fsky = gui.addFolder('🎨 日夜配色');
+    const skyNames = { day: '白天', sunset: '黃昏', night: '夜晚', dawn: '清晨' };
+    for (const [key, cfg] of Object.entries(SKY)) {
+      const f = fsky.addFolder(skyNames[key]);
+      f.addColor(cfg, 'skyTop').name('天空上').onChange(ch);
+      f.addColor(cfg, 'skyBottom').name('天空下').onChange(ch);
+      f.addColor(cfg, 'fog').name('霧色').onChange(ch);
+      f.addColor(cfg, 'sunColor').name('日光色').onChange(ch);
+      f.add(cfg, 'sun', 0, 6, 0.05).name('日光強度').onChange(ch);
+      f.addColor(cfg, 'hemiSky').name('環境光(天)').onChange(ch);
+      f.addColor(cfg, 'hemiGround').name('環境光(地)').onChange(ch);
+      f.add(cfg, 'hemi', 0, 3, 0.05).name('環境光強度').onChange(ch);
+      f.add(cfg, 'exposure', 0.3, 2.5, 0.01).name('曝光').onChange(ch);
+      f.add(cfg, 'bloom', 0, 3, 0.01).name('Bloom').onChange(ch);
+      f.add(cfg, 'stars', 0, 1, 0.01).name('星星').onChange(ch);
+      f.add(cfg, 'night', 0, 1, 0.01).name('夜燈亮度').onChange(ch);
+      f.close();
+    }
+    fsky.close();
 
     // 狀態觸發
     const fs = gui.addFolder('狀態觸發');

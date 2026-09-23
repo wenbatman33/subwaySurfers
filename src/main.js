@@ -1,9 +1,11 @@
+import { installBend } from './bend.js';
 import { loadOverrides } from './config.js';
 import { Game } from './game.js';
 import { DevTools } from './devtools.js';
 
 // 進入點：載入 DEV 覆寫值 → 等字型 → 建立遊戲
 
+installBend();
 loadOverrides();
 
 async function boot() {

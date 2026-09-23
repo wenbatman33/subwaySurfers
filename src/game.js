@@ -6,12 +6,13 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { TUNING, VISUAL, LAYOUT_PC, LAYOUT_MOBILE, IS_MOBILE } from './config.js';
-import { World } from './world.js';
+import { TUNING, VISUAL, SKY, LAYOUT_PC, LAYOUT_MOBILE, IS_MOBILE } from './config.js';
+import { World, THEMES, THEME_NAMES } from './world.js';
+import { BEND } from './bend.js';
 import { Level, laneX } from './level.js';
 import { RAMP_LEN } from './props.js';
 import { Humanoid, Dog, makeHoverboard, makeJetpack, damp } from './characters.js';
-import { Particles, SpeedLines, FXShader } from './effects.js';
+import { Particles, SpeedLines, FXShader, Rain } from './effects.js';
 import { AudioEngine } from './audio.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
@@ -21,6 +22,11 @@ const SAVE_KEY = 'ss3d_save_v1';
 const PU_NAMES = { jetpack: 'JETPACK!', magnet: 'COIN MAGNET!', sneakers: 'SUPER SNEAKERS!', multiplier: '2X SCORE!' };
 const PU_COLORS = { jetpack: '#ff9a1a', magnet: '#ff4d6d', sneakers: '#3bff8a', multiplier: '#b06bff' };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const THEME_COLORS = { city: '#ffd21a', coast: '#ff9a5a', neon: '#ff4df0', winter: '#9fe3ff' };
+// 日夜關鍵影格位置（0~1 循環）
+const TOD_KEYS = [[0, 'day'], [0.38, 'day'], [0.46, 'sunset'], [0.54, 'night'], [0.84, 'night'], [0.92, 'dawn'], [1, 'day']];
+const SKY_COLOR_KEYS = ['skyTop', 'skyBottom', 'fog', 'sunColor', 'hemiSky', 'hemiGround'];
+const SKY_NUM_KEYS = ['sun', 'hemi', 'exposure', 'bloom', 'stars', 'night'];
 
 export class Game {
   constructor(canvas) {
@@ -38,6 +44,13 @@ export class Game {
     this.camBlend = 0;
     this.camY = 0;
     this.save = this._load();
+    // 環境：日夜 / 天氣 / 彎道
+    this.env = { tod: 0.06, todLock: null, weather: 'clear', weatherLock: null, weatherTimer: 20, rain: 0, snow: 0, thunderT: 5, lightning: 0, theme: 'city' };
+    this.curve = { tx: 0, ty: 0, timer: 4, lock: false };
+    this._sky = {};
+    for (const k of SKY_COLOR_KEYS) this._sky[k] = new THREE.Color();
+    this._ca = new THREE.Color();
+    this._cb = new THREE.Color();
 
     this._initRenderer();
     this._initScene();
@@ -45,7 +58,8 @@ export class Game {
     this.level = new Level(this.scene);
     this._initCharacters();
     this.particles = new Particles(this.scene, 1800, true);
-    this.dust = new Particles(this.scene, 500, false);
+    this.dust = new Particles(this.scene, 1200, false);
+    this.rain = new Rain(this.scene);
     this.speedLines = new SpeedLines(this.camera);
     this._initPost();
     this.audio = new AudioEngine();
@@ -107,19 +121,28 @@ export class Game {
     // 天空漸層球
     this.skyMat = new THREE.ShaderMaterial({
       uniforms: {
-        top: { value: new THREE.Color(VISUAL.skyTop) },
-        bottom: { value: new THREE.Color(VISUAL.skyBottom) },
+        top: { value: new THREE.Color(SKY.day.skyTop) },
+        bottom: { value: new THREE.Color(SKY.day.skyBottom) },
         sunDir: { value: new THREE.Vector3(0.35, 0.28, -1).normalize() },
+        sunCol: { value: new THREE.Color('#ffd9a0') },
+        stars: { value: 0 },
       },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `
-        uniform vec3 top; uniform vec3 bottom; uniform vec3 sunDir; varying vec3 vDir;
+        uniform vec3 top; uniform vec3 bottom; uniform vec3 sunDir; uniform vec3 sunCol; uniform float stars; varying vec3 vDir;
         void main(){
           vec3 d = normalize(vDir);
           float h = clamp(d.y, 0.0, 1.0);
           vec3 col = mix(bottom, top, pow(h, 0.55));
           float s = max(dot(d, sunDir), 0.0);
-          col += vec3(1.0, 0.85, 0.6) * (pow(s, 600.0) * 6.0 + pow(s, 12.0) * 0.35);
+          col += sunCol * (pow(s, 600.0) * 6.0 + pow(s, 12.0) * 0.35);
+          // 星空
+          if (stars > 0.001) {
+            vec3 p = floor(d * 420.0);
+            float hs = fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            float st = step(0.9972, hs) * smoothstep(0.02, 0.3, d.y);
+            col += vec3(st * stars * (0.5 + fract(hs * 97.0)));
+          }
           gl_FragColor = vec4(col, 1.0);
         }`,
       side: THREE.BackSide,
@@ -213,19 +236,138 @@ export class Game {
     this.ui.applyLayout(this.layout, this.profile === 'mobile');
   }
 
-  applyVisual() {
-    this.renderer.toneMappingExposure = VISUAL.exposure;
-    this.bloom.strength = VISUAL.bloomStrength;
+  // 視覺參數由 _updateEnv 每幀套用（保留此方法供 DEV 工具呼叫）
+  applyVisual() {}
+
+  // 取得某時刻的天空關鍵影格插值
+  _skyAt(tod) {
+    let i = 0;
+    while (i < TOD_KEYS.length - 2 && tod > TOD_KEYS[i + 1][0]) i++;
+    const [p0, k0] = TOD_KEYS[i];
+    const [p1, k1] = TOD_KEYS[i + 1];
+    const t = clamp((tod - p0) / Math.max(1e-6, p1 - p0), 0, 1);
+    const a = SKY[k0], b = SKY[k1];
+    const out = this._sky;
+    for (const k of SKY_COLOR_KEYS) out[k].set(a[k]).lerp(this._cb.set(b[k]), t);
+    for (const k of SKY_NUM_KEYS) out[k] = a[k] + (b[k] - a[k]) * t;
+    return out;
+  }
+
+  // 日夜 / 天氣 / 主題光線
+  _updateEnv(dt) {
+    const E = this.env;
+    const R = this.run;
+    if (E.todLock == null && this.state !== 'paused') E.tod = (E.tod + dt / TUNING.dayLength) % 1;
+    const tod = E.todLock ?? E.tod;
+    const k = this._skyAt(tod);
+    const w = this.world.themeWeights(R.d);
+
+    // 主題進場提示
+    const theme = this.world.themeAt(R.d);
+    if (theme !== E.theme) {
+      E.theme = theme;
+      if (this.state === 'playing') this.ui.banner(THEME_NAMES[theme], THEME_COLORS[theme]);
+    }
+
+    // 天氣排程
+    if (this.state === 'playing' && E.weatherLock == null) {
+      E.weatherTimer -= dt;
+      if (E.weatherTimer <= 0) {
+        E.weatherTimer = TUNING.weatherInterval * (0.6 + Math.random() * 0.8);
+        E.weather = Math.random() < TUNING.rainChance ? 'rain' : 'clear';
+      }
+    }
+    const weather = E.weatherLock ?? E.weather;
+    const snowT = weather === 'snow' || (E.weatherLock == null && w.winter > 0.5) ? 1 : 0;
+    const rainT = weather === 'rain' && snowT === 0 ? 1 : 0;
+    E.rain = damp(E.rain, rainT, 0.6, dt);
+    E.snow = damp(E.snow, snowT, 0.8, dt);
+
+    // 夜晚程度（霓虹主題偏暗）
+    const night = Math.max(k.night, w.neon * 0.7);
+    const neonMix = w.neon * 0.55 * (1 - k.night);
+    const sky = this.skyMat.uniforms;
+    const gray = this._ca.setRGB(0.42, 0.46, 0.52).multiplyScalar(1 - k.night * 0.75);
+    const mixCol = (target, c) => {
+      target.copy(c);
+      if (neonMix > 0) target.lerp(this._cb.set(SKY.night[this._key]), neonMix);
+      if (w.winter > 0 && this._key !== 'skyTop') target.lerp(this._cb.set('#c8d4e2').multiplyScalar(1 - k.night * 0.8), w.winter * 0.3);
+      if (E.rain > 0) target.lerp(gray, E.rain * 0.7);
+      if (E.snow > 0 && this._key === 'fog') target.lerp(this._cb.set('#c3cedb').multiplyScalar(1 - k.night * 0.75), E.snow * 0.25);
+      return target;
+    };
+    this._key = 'skyTop'; mixCol(sky.top.value, k.skyTop);
+    this._key = 'skyBottom'; mixCol(sky.bottom.value, k.skyBottom);
+    this._key = 'fog'; mixCol(this.scene.fog.color, k.fog);
+    this.scene.background.copy(this.scene.fog.color);
+    sky.sunCol.value.copy(k.sunColor).multiplyScalar(1 - E.rain * 0.9);
+    sky.stars.value = Math.max(k.stars, w.neon * 0.5) * (1 - E.rain);
+    // 太陽高度：白天高、黃昏低、夜晚為月亮
+    const elev = 0.3 * (1 - night) + 0.35 * night * night + 0.04;
+    sky.sunDir.value.set(0.35, elev, -1).normalize();
+
+    this.sun.color.copy(k.sunColor);
+    this.sun.intensity = k.sun * VISUAL.sunIntensity * (1 - E.rain * 0.65) * (1 - neonMix * 0.5) * (1 - w.winter * 0.35);
+    this.hemi.color.copy(k.hemiSky);
+    this.hemi.groundColor.copy(k.hemiGround);
+    E.lightning = Math.max(0, E.lightning - dt * 3);
+    this.hemi.intensity = k.hemi * VISUAL.hemiIntensity * (1 - E.rain * 0.25) * (1 - w.winter * 0.2) + E.lightning * 3;
+    this.renderer.toneMappingExposure = k.exposure * VISUAL.exposure;
+    this.bloom.strength = k.bloom * VISUAL.bloomStrength;
     this.bloom.radius = VISUAL.bloomRadius;
     this.bloom.threshold = VISUAL.bloomThreshold;
-    this.sun.intensity = VISUAL.sunIntensity;
-    this.hemi.intensity = VISUAL.hemiIntensity;
-    this.scene.fog.color.set(VISUAL.fogColor);
-    this.scene.background.set(VISUAL.fogColor);
-    this.scene.fog.near = VISUAL.fogNear;
-    this.scene.fog.far = VISUAL.fogFar;
-    this.skyMat.uniforms.top.value.set(VISUAL.skyTop);
-    this.skyMat.uniforms.bottom.value.set(VISUAL.skyBottom);
+    this.scene.fog.near = VISUAL.fogNear * (1 - E.rain * 0.6);
+    this.scene.fog.far = VISUAL.fogFar * (1 - E.rain * 0.45 - E.snow * 0.12);
+    this.world.setNight(night);
+    // 雲朵隨時段變暗
+    const cb = 1 - k.night * 0.75 - E.rain * 0.35;
+    for (const c of this.clouds.children) c.material.color.setRGB(cb, cb, cb * 1.04 + k.night * 0.05);
+
+    // 雨、雪、閃電
+    const speed = this.state === 'playing' ? R.speed : 0;
+    this.rain.update(dt, E.rain, R.x, R.y, -R.d, speed);
+    this.audio.rain(this.state === 'paused' ? 0 : E.rain);
+    if (E.snow > 0.05 && this.state !== 'paused') {
+      const n = Math.random() < E.snow * 3 % 1 ? Math.ceil(E.snow * 3) : Math.floor(E.snow * 3);
+      for (let i = 0; i < n; i++) {
+        this.dust.emit({ x: R.x + (Math.random() - 0.5) * 30, y: R.y + 9 + Math.random() * 5, z: -R.d - Math.random() * 45 + 6, count: 1, spread: 0, vs: 0.5, vy: -2.4, vz: speed * 0.15, color: '#ffffff', size: 0.2, sizeEnd: 0.2, life: 4, lifeVar: 0.2, drag: 0.2 });
+      }
+    }
+    if (E.rain > 0.6 && this.state === 'playing') {
+      E.thunderT -= dt;
+      if (E.thunderT <= 0) {
+        E.thunderT = 7 + Math.random() * 12;
+        E.lightning = 1;
+        this.flash = Math.max(this.flash, 0.55);
+        this.fx.uniforms.uFlashColor.value.set('#e8f0ff');
+        this.audio.thunder();
+      }
+    }
+  }
+
+  // 彎道控制：定時隨機換彎道，平滑過渡
+  _updateCurve(dt) {
+    const C = this.curve;
+    if (this.state === 'playing' && !C.lock) {
+      C.timer -= dt;
+      if (C.timer <= 0) {
+        C.timer = TUNING.curveInterval * (0.7 + Math.random() * 0.8);
+        const cm = TUNING.curveMax * (0.5 + Math.random() * 0.5);
+        const hm = TUNING.hillMax * (0.5 + Math.random() * 0.5);
+        const opts = [[0, 0], [cm, 0], [-cm, 0], [0, hm], [0, -hm], [cm, -hm], [-cm, hm], [cm, hm], [-cm, -hm]];
+        const w = [2, 2, 2, 1, 1, 1, 1, 0.6, 0.6];
+        let r = Math.random() * w.reduce((a, b) => a + b, 0);
+        let i = 0;
+        while ((r -= w[i]) > 0) i++;
+        [C.tx, C.ty] = opts[i];
+      }
+    } else if (this.state === 'menu') {
+      C.tx = 0; C.ty = 0;
+    }
+    const k = TUNING.curveSharpness;
+    BEND.value.x = damp(BEND.value.x, C.tx, k, dt);
+    BEND.value.y = damp(BEND.value.y, TUNING.baseHill + C.ty, k, dt);
+    BEND.value.z = -this.run.d;
   }
 
   // ───────────── 流程 ─────────────
@@ -251,6 +393,12 @@ export class Game {
     this.player.shoeMat.emissive.set('#000000');
     this.camBlend = 0;
     this.timeScale = this.targetTimeScale = 1;
+    this.env.tod = 0.06;
+    this.env.weather = 'clear';
+    this.env.weatherTimer = 20;
+    this.env.theme = 'city';
+    this.curve.tx = this.curve.ty = 0;
+    this.curve.timer = 4;
   }
 
   start() {
@@ -387,12 +535,14 @@ export class Game {
 
     if (this.state !== 'paused') {
       this.world.update(this.run.d);
+      this._updateCurve(dt);
       this.level.syncCoins(dt);
       this.particles.update(dt);
       this.dust.update(dt);
       this._updateCharacters(dt);
     }
     this._updateCamera(raw, dt);
+    this._updateEnv(this.state === 'paused' ? 0 : dt);
     this._updateFX(raw);
     this.composer.render(raw);
   }

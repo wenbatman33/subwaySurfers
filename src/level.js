@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TUNING } from './config.js';
 import { Props, CAR_LEN, CAR_GAP, TRAIN_H, RAMP_LEN } from './props.js';
+import { noCull } from './bend.js';
 
 // 關卡生成：障礙物、金幣、道具的配置與查詢
 
@@ -46,6 +47,9 @@ export class Level {
     this.coinSpin = 0;
   }
 
+  // 加入場景（彎曲世界下關閉視錐裁切）
+  _add(m) { noCull(m); this.group.add(m); }
+
   reset() {
     for (const o of this.obstacles) this.group.remove(o.mesh);
     for (const p of this.powerups) this.group.remove(p.mesh);
@@ -65,14 +69,14 @@ export class Level {
     if (ramp) {
       const r = this.props.makeRamp();
       r.position.set(laneX(lane), 0, -d0);
-      this.group.add(r);
+      this._add(r);
       this.obstacles.push({ kind: 'ramp', lane, d0, d1: d0 + RAMP_LEN, top: TRAIN_H, mesh: r, prevD0: d0 });
       start = d0 + RAMP_LEN;
     }
     const len = cars * CAR_LEN + (cars - 1) * CAR_GAP;
     const mesh = this.props.makeTrain(cars, moving);
     mesh.position.set(laneX(lane), 0, -start);
-    this.group.add(mesh);
+    this._add(mesh);
     const o = { kind: 'train', lane, d0: start, d1: start + len, top: TRAIN_H, mesh, moving, active: false, prevD0: start, horned: false };
     this.obstacles.push(o);
     return o;
@@ -81,14 +85,14 @@ export class Level {
   addHurdle(lane, d) {
     const mesh = this.props.makeHurdle();
     mesh.position.set(laneX(lane), 0, -d);
-    this.group.add(mesh);
+    this._add(mesh);
     this.obstacles.push({ kind: 'hurdle', lane, d0: d - 0.15, d1: d + 0.15, top: 1.15, mesh, prevD0: d - 0.15 });
   }
 
   addOverhead(lane, d) {
     const mesh = this.props.makeOverhead();
     mesh.position.set(laneX(lane), 0, -d);
-    this.group.add(mesh);
+    this._add(mesh);
     this.obstacles.push({ kind: 'overhead', lane, d0: d - 0.15, d1: d + 0.15, bottom: 1.35, top: 2.7, mesh, prevD0: d - 0.15 });
   }
 
@@ -116,7 +120,7 @@ export class Level {
   addPowerup(type, lane, d, y = 1.3) {
     const mesh = this.props.makePowerup(type);
     mesh.position.set(laneX(lane), y, -d);
-    this.group.add(mesh);
+    this._add(mesh);
     this.powerups.push({ type, lane, d, y, mesh, alive: true });
   }
 

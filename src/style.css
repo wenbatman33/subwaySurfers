@@ -48,18 +48,20 @@ body {
   border: 3px solid #1b1b1b;
   box-shadow: inset 0 0 0 3px #ffb700;
 }
-#powerups { display: flex; flex-direction: column; gap: 10px; transform: translate(-100%, 0); }
+#powerups { display: flex; flex-direction: column; gap: 8px; transform: translate(-100%, 0); }
+/* 道具：小圓徽章 + 外圈倒數環 */
 .pu {
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(10, 20, 40, 0.55);
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 30px;
-  padding: 4px 12px 4px 4px;
-  backdrop-filter: blur(4px);
+  --p: 1;
+  position: relative;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: conic-gradient(#ffd43b calc(var(--p) * 360deg), rgba(0, 0, 0, 0.35) 0);
+  padding: 4px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
 }
-.pu canvas { width: 44px; height: 44px; }
-.pu .bar { width: 90px; height: 12px; background: rgba(0, 0, 0, 0.5); border-radius: 6px; overflow: hidden; border: 2px solid #fff; }
-.pu .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffd43b, #ff7a00); }
+.pu canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.pu.ending { animation: puBlink 0.35s steps(2) infinite; }
+@keyframes puBlink { 50% { opacity: 0.35; } }
 #btnPause, #boardBox { pointer-events: auto; cursor: pointer; }
 #btnPause {
   width: 56px; height: 56px;

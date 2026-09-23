@@ -143,54 +143,119 @@ export function graffitiWallTexture() {
 }
 
 // 大樓外牆（含窗戶發光貼圖）
-export function facadeTextures(style) {
+// style: 0 紅磚 1 米色 2 藍灰 3 橘褐 4 粉紅 5 薄荷 6 深灰(夜城) 7 深磚 8 木屋
+export function facadeTextures(style, litChance = 0.35) {
   const S = 256;
   const [c, g] = makeCanvas(S, S);
   const [ec, eg] = makeCanvas(S, S);
   const palettes = [
-    { wall: '#a8553c', trim: '#7a3a28' }, // 紅磚
-    { wall: '#d9c7a3', trim: '#b09a74' }, // 米色
-    { wall: '#7d8aa0', trim: '#5c677a' }, // 藍灰
-    { wall: '#c98a4b', trim: '#9c6533' }, // 橘褐
+    { wall: '#a8553c', trim: '#7a3a28', brick: true },
+    { wall: '#d9c7a3', trim: '#b09a74' },
+    { wall: '#7d8aa0', trim: '#5c677a' },
+    { wall: '#c98a4b', trim: '#9c6533', brick: true },
+    { wall: '#f4a3c0', trim: '#ffffff' },
+    { wall: '#9ddcc8', trim: '#ffffff' },
+    { wall: '#34344a', trim: '#22222e' },
+    { wall: '#5a3333', trim: '#3a2020', brick: true },
+    { wall: '#8a5a3a', trim: '#5e3a22', wood: true },
   ];
   const p = palettes[style % palettes.length];
   g.fillStyle = p.wall;
   g.fillRect(0, 0, S, S);
-  // 磚紋
-  if (style === 0 || style === 3) {
+  if (p.brick) {
     g.strokeStyle = 'rgba(0,0,0,0.18)';
     g.lineWidth = 1;
     for (let y = 0; y < S; y += 8) {
       g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke();
       for (let x = (y / 8) % 2 ? 0 : 8; x < S; x += 16) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 8); g.stroke(); }
     }
+  } else if (p.wood) {
+    for (let y = 0; y < S; y += 16) {
+      g.fillStyle = `rgba(0,0,0,${rand(0.05, 0.2)})`;
+      g.fillRect(0, y, S, 14);
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.fillRect(0, y + 14, S, 2);
+    }
   } else {
     noise(g, S, S, 1500, () => `rgba(0,0,0,${rand(0.03, 0.1)})`, 1, 3);
   }
   eg.fillStyle = '#000';
   eg.fillRect(0, 0, S, S);
-  // 2x2 窗戶
+  const warm = ['#ffcf7a', '#ffe2a8', '#ffb45c', '#fff1c8'];
   for (let r = 0; r < 2; r++) {
     for (let col = 0; col < 2; col++) {
       const x = col * 128 + 28, y = r * 128 + 22, w = 72, h = 84;
       g.fillStyle = p.trim;
       g.fillRect(x - 8, y - 8, w + 16, h + 20);
-      const lit = Math.random() < 0.35;
+      const lit = Math.random() < litChance;
       const glass = g.createLinearGradient(x, y, x + w, y + h);
       glass.addColorStop(0, lit ? '#ffe7a8' : '#3a5a7a');
       glass.addColorStop(1, lit ? '#ffb85c' : '#1c2c40');
       g.fillStyle = glass;
       g.fillRect(x, y, w, h);
-      // 反光
       g.fillStyle = 'rgba(255,255,255,0.25)';
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + w * 0.5, y); g.lineTo(x, y + h * 0.5); g.fill();
       g.fillStyle = p.trim;
       g.fillRect(x + w / 2 - 3, y, 6, h);
       g.fillRect(x, y + h / 2 - 3, w, 6);
-      if (lit) { eg.fillStyle = '#ffcf7a'; eg.fillRect(x, y, w, h); }
+      if (lit) { eg.fillStyle = pick(warm); eg.fillRect(x, y, w, h); }
     }
   }
   return { map: toTexture(c), emissiveMap: toTexture(ec) };
+}
+
+// 雪地
+export function snowTexture() {
+  const [c, g] = makeCanvas(512, 512);
+  g.fillStyle = '#e9f0f7';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 5000; i++) {
+    const v = rand(200, 255) | 0;
+    g.fillStyle = `rgba(${v - 20},${v - 8},${v},${rand(0.2, 0.6)})`;
+    const s = rand(1, 6);
+    g.beginPath(); g.arc(rand(0, 512), rand(0, 512), s, 0, Math.PI * 2); g.fill();
+  }
+  for (let i = 0; i < 400; i++) {
+    g.fillStyle = `rgba(90,80,70,${rand(0.1, 0.4)})`;
+    g.fillRect(rand(0, 512), rand(0, 512), rand(1, 4), rand(1, 4));
+  }
+  return toTexture(c);
+}
+
+// 沙灘
+export function sandTexture() {
+  const [c, g] = makeCanvas(256, 256);
+  g.fillStyle = '#e8d09a';
+  g.fillRect(0, 0, 256, 256);
+  noise(g, 256, 256, 5000, () => `rgba(${rand(0, 1) > 0.5 ? '255,255,255' : '120,90,40'},${rand(0.05, 0.25)})`, 1, 3);
+  return toTexture(c);
+}
+
+// 霓虹招牌
+const NEON_WORDS = ['RAMEN', 'BAR', '24H', 'HOTEL', 'CLUB', 'PIZZA', 'GAME', '拉麵', '酒吧', '夜市', 'KARAOKE', 'SUSHI', 'OPEN', 'CAFE'];
+const NEON_COLORS = ['#ff2bd6', '#2bf3ff', '#ffe600', '#ff5a1f', '#6bff4a', '#b05bff'];
+export function neonSignTexture() {
+  const [c, g] = makeCanvas(512, 192);
+  const col = pick(NEON_COLORS);
+  const text = pick(NEON_WORDS);
+  g.fillStyle = '#0a0a14';
+  g.fillRect(0, 0, 512, 192);
+  g.shadowColor = col;
+  g.shadowBlur = 24;
+  g.strokeStyle = col;
+  g.lineWidth = 8;
+  g.beginPath(); g.roundRect(14, 14, 484, 164, 26); g.stroke();
+  g.font = `900 ${/[一-鿿]/.test(text) ? 110 : 96}px "Noto Sans TC", "Arial Black", sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#ffffff';
+  g.shadowBlur = 30;
+  g.fillText(text, 256, 100);
+  g.shadowBlur = 10;
+  g.strokeStyle = col;
+  g.lineWidth = 5;
+  g.strokeText(text, 256, 100);
+  return toTexture(c, { repeat: false });
 }
 
 // 列車側面（塗裝款式）

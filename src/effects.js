@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BEND, BEND_GLSL } from './bend.js';
 
 // 粒子系統（CPU 模擬、GPU 繪製）
 export class Particles {
@@ -23,13 +24,15 @@ export class Particles {
     geo.setAttribute('palpha', new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
     this.geo = geo;
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { uScale: { value: 600 } },
+      uniforms: { uScale: { value: 600 }, uBend: BEND },
       vertexShader: /* glsl */`
         attribute vec3 pcolor; attribute float psize; attribute float palpha;
         uniform float uScale;
+        uniform vec3 uBend;
+        ${BEND_GLSL}
         varying vec3 vColor; varying float vAlpha;
         void main(){
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vec4 mv = viewMatrix * bendApply(modelMatrix * vec4(position, 1.0));
           gl_PointSize = psize * uScale / max(0.1, -mv.z);
           gl_Position = projectionMatrix * mv;
           vColor = pcolor; vAlpha = palpha;
@@ -202,3 +205,49 @@ export const FXShader = {
       gl_FragColor = vec4(col, 1.0);
     }`,
 };
+
+// 雨絲（跟隨玩家的局部空間）
+export class Rain {
+  constructor(scene, n = 700) {
+    this.n = n;
+    this.group = new THREE.Group();
+    this.drops = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) this._spawn(i, true);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    this.geo = geo;
+    this.mat = new THREE.LineBasicMaterial({ color: '#cfe0ff', transparent: true, opacity: 0, depthWrite: false });
+    this.lines = new THREE.LineSegments(geo, this.mat);
+    this.lines.frustumCulled = false;
+    this.group.add(this.lines);
+    scene.add(this.group);
+    this.amount = 0;
+  }
+  _spawn(i, init) {
+    this.drops[i * 3] = (Math.random() - 0.5) * 30;
+    this.drops[i * 3 + 1] = init ? Math.random() * 18 : 16 + Math.random() * 4;
+    this.drops[i * 3 + 2] = -Math.random() * 50 + 8;
+  }
+  update(dt, amount, x, y, z, speed) {
+    this.amount = amount;
+    this.mat.opacity = amount * 0.45;
+    this.lines.visible = amount > 0.01;
+    if (!this.lines.visible) return;
+    this.group.position.set(x, y, z);
+    const p = this.geo.attributes.position.array;
+    const count = Math.floor(this.n * amount);
+    const fall = 38 * dt;
+    const lenZ = 0.2 + speed * 0.025;
+    for (let i = 0; i < this.n; i++) {
+      const i3 = i * 3;
+      this.drops[i3 + 1] -= fall;
+      this.drops[i3 + 2] += speed * dt * 0.3;
+      if (this.drops[i3 + 1] < -1 || this.drops[i3 + 2] > 8) this._spawn(i, false);
+      const o = i * 6;
+      if (i >= count) { p[o] = p[o + 1] = p[o + 2] = p[o + 3] = p[o + 4] = p[o + 5] = 0; continue; }
+      p[o] = this.drops[i3]; p[o + 1] = this.drops[i3 + 1]; p[o + 2] = this.drops[i3 + 2];
+      p[o + 3] = this.drops[i3]; p[o + 4] = this.drops[i3 + 1] + 0.9; p[o + 5] = this.drops[i3 + 2] - lenZ;
+    }
+    this.geo.attributes.position.needsUpdate = true;
+  }
+}

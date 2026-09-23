@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { BEND } from './bend.js';
 
 // 程序化卡通角色（Toon 著色 + 黑色描邊）：玩家、警衛、狗
 
@@ -20,6 +21,7 @@ const toon = (color, o = {}) => new THREE.MeshToonMaterial({ color, gradientMap:
 const OUTLINE = (() => {
   const m = new THREE.MeshBasicMaterial({ color: '#15151c', side: THREE.BackSide });
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.uBend = BEND;
     sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed += normalize(normal) * 0.013;');
   };
   return m;

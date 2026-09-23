@@ -69,15 +69,12 @@ export class UI {
         if (!el) {
           el = document.createElement('div');
           el.className = 'pu';
-          el.appendChild(powerupIconCanvas(type, 88));
-          const bar = document.createElement('div');
-          bar.className = 'bar';
-          bar.appendChild(document.createElement('i'));
-          el.appendChild(bar);
+          el.appendChild(powerupIconCanvas(type, 96));
           this.el.powerups.appendChild(el);
           this.puEls[type] = el;
         }
-        el.querySelector('i').style.width = (frac * 100).toFixed(1) + '%';
+        el.style.setProperty('--p', frac.toFixed(3));
+        el.classList.toggle('ending', frac < 0.2);
       } else if (el) {
         el.remove();
         delete this.puEls[type];
