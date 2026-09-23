@@ -251,10 +251,14 @@ export function neonSignTexture() {
   g.fillStyle = '#ffffff';
   g.shadowBlur = 30;
   g.fillText(text, 256, 100);
-  g.shadowBlur = 10;
-  g.strokeStyle = col;
-  g.lineWidth = 5;
-  g.strokeText(text, 256, 100);
+  // 中文不描邊（避免筆畫重疊處出現內線），改用第二層彩色光暈
+  g.shadowBlur = 16;
+  g.globalCompositeOperation = 'lighter';
+  g.fillStyle = col;
+  g.globalAlpha = 0.35;
+  g.fillText(text, 256, 100);
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = 'source-over';
   return toTexture(c, { repeat: false });
 }
 

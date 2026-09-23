@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { TUNING, VISUAL, SKY, LAYOUT_PC, LAYOUT_MOBILE, IS_MOBILE } from './config.js';
-import { World, THEMES, THEME_NAMES } from './world.js';
+import { World } from './world.js';
 import { BEND } from './bend.js';
 import { Level, laneX } from './level.js';
 import { RAMP_LEN } from './props.js';
@@ -17,19 +17,20 @@ import { AudioEngine } from './audio.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
 import { cloudTexture } from './textures.js';
+import { ModelHumanoid, ModelDog } from './models.js';
 
 const SAVE_KEY = 'ss3d_save_v1';
 const PU_NAMES = { jetpack: 'JETPACK!', magnet: 'COIN MAGNET!', sneakers: 'SUPER SNEAKERS!', multiplier: '2X SCORE!' };
 const PU_COLORS = { jetpack: '#ff9a1a', magnet: '#ff4d6d', sneakers: '#3bff8a', multiplier: '#b06bff' };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const THEME_COLORS = { city: '#ffd21a', coast: '#ff9a5a', neon: '#ff4df0', winter: '#9fe3ff' };
 // 日夜關鍵影格位置（0~1 循環）
 const TOD_KEYS = [[0, 'day'], [0.38, 'day'], [0.46, 'sunset'], [0.54, 'night'], [0.84, 'night'], [0.92, 'dawn'], [1, 'day']];
 const SKY_COLOR_KEYS = ['skyTop', 'skyBottom', 'fog', 'sunColor', 'hemiSky', 'hemiGround'];
 const SKY_NUM_KEYS = ['sun', 'hemi', 'exposure', 'bloom', 'stars', 'night'];
 
 export class Game {
-  constructor(canvas) {
+  constructor(canvas, models = null) {
+    this.models = models;
     this.canvas = canvas;
     this.isMobile = IS_MOBILE;
     document.body.classList.toggle('is-mobile', this.isMobile);
@@ -169,20 +170,26 @@ export class Game {
   }
 
   _initCharacters() {
-    this.player = new Humanoid({});
+    const M = this.models;
+    this.player = M
+      ? new ModelHumanoid(M.hoodie, { height: 1.95, colors: { Purple: '#ff6a1a', LightBlue: '#2f5ba8', White: '#f3f3f3' } })
+      : new Humanoid({});
     this.scene.add(this.player.root);
     this.board = makeHoverboard();
     this.board.position.y = 0.1;
     this.board.visible = false;
     this.player.root.add(this.board);
     this.jetpack = makeJetpack();
-    this.jetpack.position.set(0, 0.42, 0.34);
+    if (M) this.jetpack.position.set(0, 0.25, 0.28);
+    else this.jetpack.position.set(0, 0.26, 0.3);
     this.jetpack.visible = false;
     this.player.torso.add(this.jetpack);
 
-    this.guard = new Humanoid({ guard: true, shirt: '#2d4a8a', pants: '#1f2d55', cap: '#1a2448', shoe: '#1b1b1b', shoeAccent: '#333', skin: '#e9b48a', scale: 1.1 });
+    this.guard = M
+      ? new ModelHumanoid(M.worker, { height: 2.15, guard: true, colors: { Worker_Yellow: '#1c2a5a', Worker_Vest: '#2d4a8a', Brown: '#1f2d55', Brown2: '#15151c', LightBrown: '#2d4a8a' } })
+      : new Humanoid({ guard: true, shirt: '#2d4a8a', pants: '#1f2d55', cap: '#1a2448', shoe: '#1b1b1b', shoeAccent: '#333', skin: '#e9b48a', scale: 1.0 });
     this.scene.add(this.guard.root);
-    this.dog = new Dog();
+    this.dog = M ? new ModelDog(M.shiba, { length: 0.8 }) : new Dog();
     this.scene.add(this.dog.root);
   }
 
@@ -262,12 +269,6 @@ export class Game {
     const k = this._skyAt(tod);
     const w = this.world.themeWeights(R.d);
 
-    // 主題進場提示
-    const theme = this.world.themeAt(R.d);
-    if (theme !== E.theme) {
-      E.theme = theme;
-      if (this.state === 'playing') this.ui.banner(THEME_NAMES[theme], THEME_COLORS[theme]);
-    }
 
     // 天氣排程
     if (this.state === 'playing' && E.weatherLock == null) {
@@ -819,27 +820,27 @@ export class Game {
     if (this.state === 'menu') {
       const t = R.time;
       const beat = Math.sin(t * 10.9);
-      pose = { shL: 0.15, shR: -0.2, elL: 0.4, elR: 1.2, shZL: -0.2, shZR: 0.3, torsoX: 0.05 + beat * 0.03, rigY: 0.93 + Math.abs(beat) * 0.03, headX: beat * 0.12, knL: -0.1 - Math.abs(beat) * 0.1, knR: -0.1 - Math.abs(beat) * 0.1 };
+      pose = { anim: 'Wave', shL: 0.15, shR: -0.2, elL: 0.4, elR: 1.2, shZL: -0.2, shZR: 0.3, torsoX: 0.05 + beat * 0.03, rigY: 0.93 + Math.abs(beat) * 0.03, headX: beat * 0.12, knL: -0.1 - Math.abs(beat) * 0.1, knR: -0.1 - Math.abs(beat) * 0.1 };
     } else if (R.dead) {
       pose = R.caught
-        ? { shL: 0.3, shR: 0.3, elL: 0.4, elR: 0.4, headX: -0.3, rigY: 0.95 }
-        : { shL: 2.8, shR: 2.6, shZL: -0.6, shZR: 0.6, hipL: 1.2, hipR: 0.4, knL: -0.4, knR: -0.3, headX: -0.4, rigY: 0.55 };
-      rigRot = R.caught ? 0 : 1.35;
+        ? { anim: 'HitRecieve', shL: 0.3, shR: 0.3, elL: 0.4, elR: 0.4, headX: -0.3, rigY: 0.95 }
+        : { anim: 'Death', shL: 2.8, shR: 2.6, shZL: -0.6, shZR: 0.6, hipL: 1.2, hipR: 0.4, knL: -0.4, knR: -0.3, headX: -0.4, rigY: 0.55 };
+      rigRot = R.caught || P.isModel ? 0 : 1.35;
     } else if (R.pu.jetpack > 0) {
-      pose = { torsoX: -0.3, hipL: -0.3, hipR: -0.1, knL: -0.9, knR: -0.5, shL: -0.5, shR: -0.5, shZL: -0.35, shZR: 0.35, elL: 0.4, elR: 0.4, headX: 0.35 };
+      pose = { anim: 'Idle_Neutral', torsoX: -0.3, hipL: -0.3, hipR: -0.1, knL: -0.9, knR: -0.5, shL: -0.5, shR: -0.5, shZL: -0.35, shZR: 0.35, elL: 0.4, elR: 0.4, headX: 0.35 };
       bodyTilt = -0.4;
     } else if (R.roll > 0) {
-      pose = { hipL: 2.0, hipR: 2.0, knL: -2.4, knR: -2.4, shL: 1.2, shR: 1.2, elL: 1.6, elR: 1.6, torsoX: -0.6, rigY: 0.55, headX: 0.5 };
+      pose = { anim: 'Roll', timeScale: 1.25, hipL: 2.0, hipR: 2.0, knL: -2.4, knR: -2.4, shL: 1.2, shR: 1.2, elL: 1.6, elR: 1.6, torsoX: -0.6, rigY: 0.55, headX: 0.5 };
       R.rollSpin = 1 - R.roll / TUNING.rollDuration;
     } else if (!R.grounded) {
       const up = R.vy > 0;
-      pose = { hipL: 1.1, knL: -1.7, hipR: up ? 0.2 : 0.6, knR: up ? -0.8 : -1.2, shL: 2.6, shR: 2.1, shZL: -0.3, shZR: 0.3, elL: 0.3, elR: 0.5, torsoX: -0.1, headX: 0.1 };
+      pose = { anim: 'Run', timeScale: 0.3, hipL: 1.1, knL: -1.7, hipR: up ? 0.2 : 0.6, knR: up ? -0.8 : -1.2, shL: 2.6, shR: 2.1, shZL: -0.3, shZR: 0.3, elL: 0.3, elR: 0.5, torsoX: -0.1, headX: 0.1 };
     } else if (onBoard) {
       const w = Math.sin(R.time * 5) * 0.05;
-      pose = { hipsY: 1.1, torsoY: -0.7, hipZL: 0.35, hipZR: -0.35, knL: -0.6, knR: -0.6, hipL: 0.4, hipR: 0.4, shZL: -1.1 + w, shZR: 1.1 - w, elL: 0.3, elR: 0.3, rigY: 0.86 };
+      pose = { anim: 'Idle', hipsY: 1.1, torsoY: -0.7, hipZL: 0.35, hipZR: -0.35, knL: -0.6, knR: -0.6, hipL: 0.4, hipR: 0.4, shZL: -1.1 + w, shZR: 1.1 - w, elL: 0.3, elR: 0.3, rigY: 0.86 };
     } else {
       R.phase += dt * (6 + speed * 0.28);
-      pose = P.runPose(R.phase);
+      pose = P.runPose(R.phase, 1, speed);
       // 跑步揚塵
       R.dustT -= dt;
       if (R.dustT <= 0 && this.state === 'playing') {
@@ -849,8 +850,14 @@ export class Game {
     }
     P.apply(pose, dt, R.roll > 0 ? 30 : 18);
     // 翻滾旋轉
-    if (R.roll > 0) P.rig.rotation.x = -R.rollSpin * Math.PI * 2;
+    if (R.roll > 0 && !P.isModel) P.rig.rotation.x = -R.rollSpin * Math.PI * 2;
     else P.rig.rotation.x = damp(P.rig.rotation.x, rigRot, 10, dt);
+    if (P.isModel) {
+      // 模型：滑板時側身、跳躍時微前傾
+      P.rig.rotation.y = damp(P.rig.rotation.y, onBoard && R.grounded && !R.dead ? 1.1 : 0, 8, dt);
+      if (!R.grounded && R.pu.jetpack <= 0 && !R.dead && R.roll <= 0) P.rig.rotation.x = damp(P.rig.rotation.x, R.vy > 0 ? -0.25 : 0.1, 10, dt);
+      P.update(dt);
+    }
     P.root.rotation.x = damp(P.root.rotation.x, bodyTilt, 6, dt);
 
     // 超級球鞋發光
@@ -897,11 +904,13 @@ export class Game {
       const gp = G.runPose(R.guardPhase);
       gp.shR = 2.6 + Math.sin(R.guardPhase * 2) * 0.3; // 揮拳
       gp.elR = 0.6;
+      gp.timeScale = Math.max(0.8, speed / 22);
       G.apply(gp, dt);
     } else {
       const t = R.time;
-      G.apply({ shL: 0.1, shR: this.state === 'menu' ? 0.1 : 2.4, elR: 0.8, headX: Math.sin(t * 2) * 0.1, torsoX: 0.05, rigY: 0.95 + Math.sin(t * 3) * 0.01 }, dt);
+      G.apply({ anim: this.state === 'dying' && R.caught ? 'Punch_Right' : 'Idle', shL: 0.1, shR: this.state === 'menu' ? 0.1 : 2.4, elR: 0.8, headX: Math.sin(t * 2) * 0.1, torsoX: 0.05, rigY: 0.95 + Math.sin(t * 3) * 0.01 }, dt);
     }
+    G.update?.(dt);
     this.dog.animate(R.time + (R.guardPhase || 0), moving);
 
     // 雲朵飄移

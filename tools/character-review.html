@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>角色檢視器</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #eaf8f6; font-family: system-ui, sans-serif; overflow: hidden; }
+  #ui { position: fixed; left: 10px; top: 10px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 2; }
+  button { padding: 6px 12px; border-radius: 8px; border: 1px solid #999; background: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <button data-v="front">正面 3/4</button><button data-v="side">側面</button><button data-v="back">背面</button>
+  <button data-a="idle">待機</button><button data-a="run">跑步</button>
+  <button data-c="kid">主角</button><button data-c="guard">警衛</button><button data-c="dog">狗</button><button data-c="all">全部</button>
+</div>
+<script type="module" src="./character-review.js"></script>
+</body>
+</html>
