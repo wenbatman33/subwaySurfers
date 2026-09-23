@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#101828" />
+  <title>Subway Surf 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Noto+Sans+TC:wght@700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <!-- 遊戲中 HUD -->
+    <div id="hud" class="hidden">
+      <button id="btnPause" class="hud-el" data-hud="pause" aria-label="暫停"><span></span><span></span></button>
+      <div id="scoreBox" class="hud-el" data-hud="score"><span id="multi">x1</span><span id="score">0</span></div>
+      <div id="coinBox" class="hud-el" data-hud="coins"><i class="coin-ico"></i><span id="coins">0</span></div>
+      <div id="powerups" class="hud-el" data-hud="powerups"></div>
+      <button id="boardBox" class="hud-el" data-hud="board"><span class="board-ico"></span><span id="boards">3</span></button>
+    </div>
+    <div id="banner" class="hud-el" data-hud="banner"></div>
+
+    <!-- 主選單 -->
+    <div id="menu" class="screen">
+      <div class="logo">
+        <div class="logo-top">SUBWAY</div>
+        <div class="logo-bot">SURF 3D</div>
+      </div>
+      <div class="menu-stats">
+        <div>最高分 <b id="bestScore">0</b></div>
+        <div>金幣 <b id="totalCoins">0</b></div>
+      </div>
+      <button id="btnPlay" class="big-btn">開始遊戲</button>
+      <div class="help pc-only">← → 換軌道　↑ / Space 跳躍　↓ 翻滾　H 滑板　Esc 暫停</div>
+      <div class="help mobile-only">左右滑換軌道 · 上滑跳 · 下滑滾 · 雙擊滑板</div>
+      <button id="btnSound" class="small-btn">🔊 音效：開</button>
+    </div>
+
+    <!-- 暫停 -->
+    <div id="pauseScreen" class="screen hidden">
+      <div class="title">暫停</div>
+      <button id="btnResume" class="big-btn">繼續</button>
+      <button id="btnRestart" class="mid-btn">重新開始</button>
+      <button id="btnHome" class="mid-btn">回主選單</button>
+      <button id="btnSound2" class="small-btn">🔊 音效：開</button>
+    </div>
+
+    <!-- 結算 -->
+    <div id="overScreen" class="screen hidden">
+      <div class="title over-title" id="overTitle">被抓到了！</div>
+      <div class="result">
+        <div class="row"><span>分數</span><b id="rScore">0</b></div>
+        <div class="row"><span>金幣</span><b id="rCoins">0</b></div>
+        <div class="row"><span>距離</span><b id="rDist">0m</b></div>
+        <div class="row best"><span>最高分</span><b id="rBest">0</b></div>
+        <div id="newBest" class="new-best hidden">NEW HIGH SCORE!</div>
+      </div>
+      <button id="btnAgain" class="big-btn">再玩一次</button>
+      <button id="btnMenu" class="mid-btn">主選單</button>
+    </div>
+
+    <div id="loading"><div class="spinner"></div><div>載入中…</div></div>
+    <button id="devBtn" title="開發者微調工具 (` 或 F2)">⚙</button>
+    <div id="devHint" class="hidden">DEV 模式：可直接拖曳 HUD 元件</div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
