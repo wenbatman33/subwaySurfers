@@ -15,7 +15,7 @@ const MAT = {
   skin: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.52, sheen: 0.6, sheenRoughness: 0.45, sheenColor: col('#ffb89c') }),
   cloth: (c, sheen = 1) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.86, sheen, sheenRoughness: 0.55, sheenColor: lighten(c, 0.45) }),
   plastic: (c, r = 0.35) => new THREE.MeshPhysicalMaterial({ color: c, roughness: r, clearcoat: 0.35, clearcoatRoughness: 0.3 }),
-  rubber: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.55 }),
+  rubber: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.7 }),
   hair: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.72, sheen: 0.5, sheenRoughness: 0.35, sheenColor: lighten(c, 0.3) }),
   glossy: (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05 }),
   basic: (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o }),
@@ -137,9 +137,9 @@ export class Humanoid {
     const shortsDk = MAT.cloth('#606064');
     const hairM = MAT.hair('#3a2a22');
     const cap = MAT.cloth('#e3502c', 0.8);
-    const sock = new THREE.MeshPhysicalMaterial({ map: stripeTex('#f4f4f8', '#5a4cb8'), roughness: 0.9, sheen: 0.6, sheenColor: col('#ffffff') });
+    const sock = new THREE.MeshPhysicalMaterial({ map: stripeTex('#d9d9e0', '#5a4cb8'), roughness: 0.92, sheen: 0.3, sheenColor: col('#d0d0d8') });
     const shoe = MAT.cloth('#6b52c8', 0.5);
-    const sole = MAT.rubber('#f4f4f4');
+    const sole = MAT.rubber('#cfcac4');
     this.shoeMat = sole;
 
     // 骨盆 / 短褲腰

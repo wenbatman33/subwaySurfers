@@ -12,7 +12,7 @@ import { BEND } from './bend.js';
 import { Level, laneX } from './level.js';
 import { RAMP_LEN } from './props.js';
 import { Humanoid, Dog, makeHoverboard, makeJetpack, damp } from './characters.js';
-import { Particles, SpeedLines, FXShader, Rain } from './effects.js';
+import { Particles, SpeedLines, FXShader, Rain, SpeedTrails } from './effects.js';
 import { AudioEngine } from './audio.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
@@ -61,6 +61,7 @@ export class Game {
     this.particles = new Particles(this.scene, 1800, true);
     this.dust = new Particles(this.scene, 1200, false);
     this.rain = new Rain(this.scene);
+    this.trails = new SpeedTrails(this.scene);
     this.speedLines = new SpeedLines(this.camera);
     this._initPost();
     this.audio = new AudioEngine();
@@ -313,12 +314,16 @@ export class Game {
     this.hemi.groundColor.copy(k.hemiGround);
     E.lightning = Math.max(0, E.lightning - dt * 3);
     this.hemi.intensity = k.hemi * VISUAL.hemiIntensity * (1 - E.rain * 0.25) * (1 - w.winter * 0.2) + E.lightning * 3;
-    this.renderer.toneMappingExposure = k.exposure * VISUAL.exposure;
-    this.bloom.strength = k.bloom * VISUAL.bloomStrength;
+    // 手機螢幕較亮：曝光與泛光略降
+    const mob = this.isMobile ? 0.9 : 1;
+    this.renderer.toneMappingExposure = k.exposure * VISUAL.exposure * mob;
+    this.bloom.strength = k.bloom * VISUAL.bloomStrength * (this.isMobile ? 0.75 : 1);
     this.bloom.radius = VISUAL.bloomRadius;
     this.bloom.threshold = VISUAL.bloomThreshold;
-    this.scene.fog.near = VISUAL.fogNear * (1 - E.rain * 0.6);
-    this.scene.fog.far = VISUAL.fogFar * (1 - E.rain * 0.45 - E.snow * 0.12);
+    // 高空（噴射背包）時霧推遠，避免整片灰白
+    const alt = clamp(R.y / TUNING.jetpackHeight, 0, 1);
+    this.scene.fog.near = VISUAL.fogNear * (1 - E.rain * 0.6) * (1 + alt * 0.8);
+    this.scene.fog.far = VISUAL.fogFar * (1 - E.rain * 0.45 - E.snow * 0.12) * (1 + alt * 0.5);
     this.world.setNight(night);
     // 雲朵隨時段變暗
     const cb = 1 - k.night * 0.75 - E.rain * 0.35;
@@ -377,6 +382,7 @@ export class Game {
     this.world.reset();
     this.particles.clear();
     this.dust.clear();
+    this.trails?.clear();
     this.ui.clearPowerups();
     this.audio.jetpackOn(false);
     this.run = {
@@ -788,8 +794,8 @@ export class Game {
         R.combo++;
         R.comboTimer = 0.7;
         this.audio.coin(R.combo);
-        this.particles.emit({ x: c.x, y: c.y, z: -c.d, count: 9, spread: 0.15, vs: 3.5, color: '#ffd23a', size: 0.22, life: 0.45, intensity: 2.2, drag: 3 });
-        this.particles.emit({ x: c.x, y: c.y, z: -c.d, count: 1, spread: 0, vs: 0, color: '#fff3b0', size: 1.4, sizeEnd: 0.1, life: 0.2, intensity: 1.5 });
+        this.particles.emit({ x: c.x, y: c.y, z: -c.d, count: 9, spread: 0.15, vs: 3.5, color: '#ffd23a', size: 0.2, life: 0.4, intensity: 1.5, drag: 3 });
+        this.particles.emit({ x: c.x, y: c.y, z: -c.d, count: 1, spread: 0, vs: 0, color: '#fff3b0', size: 1.0, sizeEnd: 0.1, life: 0.18, intensity: 1.0 });
       }
     }
     for (const p of this.level.powerups) {
@@ -869,10 +875,10 @@ export class Game {
       const z = -R.d;
       if (R.pu.jetpack > 0) {
         for (const s of [-0.16, 0.16]) {
-          this.particles.emit({ x: R.x + s, y: R.y + 0.9, z: z + 0.55, count: 3, spread: 0.06, vs: 1, vy: -9, vz: 6, color: '#ffae2a', size: 0.5, sizeEnd: 0.05, life: 0.28, intensity: 3 });
-          this.particles.emit({ x: R.x + s, y: R.y + 0.95, z: z + 0.55, count: 1, spread: 0.03, vs: 0.3, vy: -6, vz: 6, color: '#ffffff', size: 0.3, sizeEnd: 0.02, life: 0.12, intensity: 4 });
+          this.particles.emit({ x: R.x + s, y: R.y + 0.75, z: z + 0.6, count: 2, spread: 0.05, vs: 0.8, vy: -10, vz: 7, color: '#ff8a1a', size: 0.36, sizeEnd: 0.04, life: 0.22, intensity: 1.4 });
+          this.particles.emit({ x: R.x + s, y: R.y + 0.8, z: z + 0.6, count: 1, spread: 0.02, vs: 0.2, vy: -7, vz: 7, color: '#ffe08a', size: 0.18, sizeEnd: 0.02, life: 0.1, intensity: 1.6 });
         }
-        this.dust.emit({ x: R.x, y: R.y + 0.4, z: z + 1.2, count: 1, spread: 0.2, vs: 0.5, vz: 10, color: '#cfcfcf', size: 0.6, sizeEnd: 1.6, life: 0.7, drag: 1 });
+        if (Math.random() < 0.4) this.dust.emit({ x: R.x, y: R.y - 0.2, z: z + 2.2, count: 1, spread: 0.2, vs: 0.4, vz: 10, vy: -2, color: '#9a9a9a', size: 0.5, sizeEnd: 1.2, life: 0.5, drag: 1 });
       }
       if (R.pu.magnet > 0 && Math.random() < 0.6) {
         const a = Math.random() * Math.PI * 2;
@@ -974,6 +980,12 @@ export class Game {
     // 速度線
     const sl = this.state === 'playing' ? (jet ? 1 : Math.max(0, speedN - 0.45) * 1.2 + (R.board > 0 ? 0.2 : 0)) : 0;
     this.speedLines.update(raw, sl, R.speed);
+    // 角色周圍速度氣流線：高速 / 超級球鞋 / 滑板時出現（噴射背包另有特效）
+    let trail = 0;
+    if (this.state === 'playing' && R.pu.jetpack <= 0) {
+      trail = Math.max(0, (speedN - 0.35) / 0.65) + (R.pu.sneakers > 0 ? 0.45 : 0) + (R.board > 0 ? 0.3 : 0);
+    }
+    this.trails.update(dt, Math.min(1, trail), R.x, R.y, -R.d, R.speed);
     void dt;
   }
 
@@ -987,7 +999,7 @@ export class Game {
     u.uCA.value = this.ca + (this.state === 'playing' ? 0.002 + speedN * 0.004 : 0.001);
     u.uVignette.value = VISUAL.vignette + (this.state === 'dying' ? 0.3 : 0);
     u.uSat.value = this.state === 'gameover' ? VISUAL.saturation * 0.5 : VISUAL.saturation;
-    u.uBlur.value = this.state === 'playing' ? (R.pu.jetpack > 0 ? 0.45 : speedN * 0.25) : 0;
+    u.uBlur.value = this.state === 'playing' ? (R.pu.jetpack > 0 ? 0.18 : speedN * 0.15) : 0;
   }
 
   // ───────────── 粒子工具 ─────────────

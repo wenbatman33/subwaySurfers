@@ -147,7 +147,7 @@ export class SpeedLines {
   }
   update(dt, intensity, speed) {
     this.intensity += (intensity - this.intensity) * Math.min(1, dt * 5);
-    this.mat.opacity = this.intensity * 0.55;
+    this.mat.opacity = this.intensity * 0.3;
     this.lines.visible = this.intensity > 0.01;
     if (!this.lines.visible) return;
     const p = this.geo.attributes.position.array;
@@ -250,4 +250,58 @@ export class Rain {
     }
     this.geo.attributes.position.needsUpdate = true;
   }
+}
+
+// 速度氣流線：高速奔跑時在角色周圍生成往後拉的發光線條（世界座標固定，隨玩家前進自然劃過）
+export class SpeedTrails {
+  constructor(scene, n = 80) {
+    this.n = n;
+    this.pos = new Float32Array(n * 6);
+    this.col = new Float32Array(n * 6);
+    this.d = Array.from({ length: n }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0, len: 1, i: 1 }));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geo = geo;
+    this.lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.lines.frustumCulled = false;
+    this.lines.renderOrder = 6;
+    scene.add(this.lines);
+    this.cursor = 0;
+    this.acc = 0;
+    this.tint = new THREE.Color('#bfefff');
+  }
+  update(dt, amount, px, py, pz, speed) {
+    // 生成
+    this.acc += amount * 90 * dt;
+    while (this.acc >= 1) {
+      this.acc -= 1;
+      const t = this.d[this.cursor];
+      this.cursor = (this.cursor + 1) % this.n;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      t.x = px + side * (0.35 + Math.random() * 0.8);
+      t.y = py + 0.2 + Math.random() * 1.9;
+      t.z = pz - 2.5 - Math.random() * 2.5;
+      t.len = 1.2 + speed * 0.07 * (0.6 + Math.random() * 0.8);
+      t.max = t.life = 0.22 + Math.random() * 0.15;
+      t.i = 1.6 + Math.random() * 1.4;
+    }
+    // 更新
+    const c = this.tint;
+    for (let k = 0; k < this.n; k++) {
+      const t = this.d[k];
+      const o = k * 6;
+      if (t.life <= 0) { this.col.fill(0, o, o + 6); continue; }
+      t.life -= dt;
+      const f = Math.max(0, t.life / t.max);
+      const a = Math.sin(f * Math.PI) * t.i; // 淡入淡出
+      this.pos[o] = t.x; this.pos[o + 1] = t.y; this.pos[o + 2] = t.z;
+      this.pos[o + 3] = t.x; this.pos[o + 4] = t.y; this.pos[o + 5] = t.z + t.len;
+      this.col[o] = c.r * a; this.col[o + 1] = c.g * a; this.col[o + 2] = c.b * a;
+      this.col[o + 3] = 0; this.col[o + 4] = 0; this.col[o + 5] = 0;
+    }
+    this.geo.attributes.position.needsUpdate = true;
+    this.geo.attributes.color.needsUpdate = true;
+  }
+  clear() { for (const t of this.d) t.life = 0; }
 }
